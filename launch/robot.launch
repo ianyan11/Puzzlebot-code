@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+	<node pkg="solution" type="odometry.py" name="Odometry" />
+	<node pkg="solution" type="control.py" name="Control" />
+</launch>
