@@ -1,10 +1,13 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 from math import atan2
+from os import kill
 from re import X
 import rospy
 from tf2_ros import TransformListener, Buffer, TransformBroadcaster
 from geometry_msgs.msg import Pose, Point, Twist, Vector3, Quaternion, TransformStamped
+from control_msgs.msg import PidState
 from tf.transformations import euler_from_quaternion
+from simple_pid import PID
 
 #Clase control que ejecuta las acciones de contol y contiene las variables involucradas
 class Control:
@@ -14,14 +17,28 @@ class Control:
     posPub = rospy.Publisher('cmd_vel', Twist, queue_size = 10)
     #The message is going to be a Twist class objects
     msg = Twist()
-    #Sintonization variables
-    kpl = 0.8
-    kpt = 0.5
 
+    dt = 0.01087
+    #Sintonization variables
+    pid_l = PID(0.3, 0.001, 0.02, setpoint = 0, sample_time=dt) 
+    linearPub = rospy.Publisher('linearPID', PidState, queue_size = 10)
+    linear = PidState()
+    pid_a = PID(2, 0.02, 0.02, setpoint = 0, sample_time=dt)
+    angularPub = rospy.Publisher('angularPID', PidState, queue_size = 10)
+    angular = PidState()
     def __init__(self):
         self.tf_buffer = Buffer()
         #Start tf listener
         self.listener = TransformListener(self.tf_buffer)
+        self.linear.p_term = self.pid_l.Kp
+        self.linear.i_term = self.pid_l.Ki
+        self.linear.d_term = self.pid_l.Kd
+        self.angular.p_term = self.pid_a.Kp
+        self.angular.i_term = self.pid_a.Ki
+        self.angular.d_term = self.pid_a.Kd
+
+
+
 
     #Method to set the position
     def setDesiredPosition(self, data):
@@ -48,20 +65,44 @@ class Control:
     def startControl(self):
         #Look for the transform between robot and points
         transformObject = self.tf_buffer.lookup_transform("robot", "point", rospy.Time())
-        rospy.loginfo(transformObject)
         #Extract translation
         trans = transformObject.transform.translation
         #Compute PID
         self.pidCalculation(trans)
+
         #Return true if robot reached the desired position
         return(abs(trans.x)<0.01 and abs(trans.y)<0.01)
         
     #Compute PID method
     def pidCalculation(self, error):
         #Compute and Set linear and angular speed on msg
-        self.msg.linear.x = self.kpl*error.x
+        self.msg.linear.x = -self.pid_l(error.x)
+        self.linear.header.stamp = rospy.Time.now()
+        self.linear.header.frame_id = "robot"
+        linearComp = self.pid_l.components
+        self.linear.error = error.x
+        self.linear.p_error = linearComp[0]
+        self.linear.i_error = linearComp[1]
+        self.linear.d_error = linearComp[2]
+        self.linear.output = self.msg.linear.x
+        self.linearPub.publish(self.linear)
+
         yaw = atan2(error.y,error.x)
-        self.msg.angular.z = self.kpt*yaw
+        self.msg.angular.z = -self.pid_a(yaw)
+        self.angular.header.stamp = rospy.Time.now()
+        self.angular.header.frame_id = "robot"
+        angularComp = self.pid_a.components
+        self.angular.error = yaw
+        self.angular.p_error = angularComp[0]
+        self.angular.i_error = angularComp[1]
+        self.angular.d_error = angularComp[2]
+        self.angular.output = self.msg.angular.z
+        self.angularPub.publish(self.angular)
+
+
+
+        rospy.loginfo("pid_l: ", linearComp)
+        rospy.loginfo("pid_t:", angularComp)
         #Publish velocities
         self.setVelocities(self.msg)
 
