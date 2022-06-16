@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+	<node pkg="solution" type="line_folower.py" name="LineFollower" output="screen"/>
+	<node pkg="reto_final" type="semaforoHsv.py" name="Semaforo" />
+</launch>
