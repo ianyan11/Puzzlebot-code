@@ -17,14 +17,19 @@ class Line_Follower():
         #Suscribes
         rospy.Subscriber('/video_source/raw', Image, self.img_callback)
         rospy.Subscriber('/ligth_state', String, self.ligth_state)
+        rospy.Subscriber('/IA/signal_detection', String, self.signal_detection)
+
         self.tape_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
         self.twist = Twist()
         self.state = "Follow"
         self.ligth_state = " "
         self.iter = 0
         self.begin = rospy.get_time()
+        self.signal = ""
 
-        
+    def signal_detection(self, str):
+        self.signal=str.data
+
     
     def ligth_state (self, msg):
         """Method which recieves semaphore state"""
@@ -58,11 +63,11 @@ class Line_Follower():
 
 
 
-        elif (self.state == "Green" and self.iter == 0):
+        elif (self.state == "Green" and self.signal == "Ahead Only" """self.iter==0"""):
             self.twist.angular.z = 0.0
             self.twist.linear.x = 0.2
 
-        elif(self.state == "Green" and self.iter == 1):
+        elif(self.state == "Green" and self.signal == "Turn Right" """self.iter==1"""):
             #print("alla")
             self.twist.angular.z =-0.1
             self.twist.linear.x = 0.15
